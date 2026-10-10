@@ -114,7 +114,15 @@ const MIN_PUBLISH_AT_LEAD = 5 * 60 * 1000;
 const isFuture = (date, margin = 0) => Boolean(date) && date.getTime() > Date.now() + margin;
 export const youtubeReady = async (userId) => isConfigured() && Boolean((await getSettings(userId)).youtube?.tokens);
 
-export async function publishJob(job) {
+// A failed upload is retried on this interval until it goes through or the attempts run out
+// (48 hours: long enough to outlast YouTube's rolling 24-hour channel upload limit).
+const UPLOAD_RETRY_MS = 5 * 60 * 1000;
+const MAX_UPLOAD_RETRIES = (48 * 60 * 60 * 1000) / UPLOAD_RETRY_MS;
+
+/** `retry` marks an automatic retry by the scheduler; any other call starts the retry count over. */
+export async function publishJob(job, { retry = false } = {}) {
+  job.retryAt = undefined;
+  if (!retry) job.uploadAttempts = 0;
   const settings = await getSettings(job.userId);
   if (!isConfigured()) throw new Error('YouTube uploads are not set up on this platform yet');
   if (!settings.youtube?.tokens) throw new Error('Connect your YouTube channel first');
@@ -151,6 +159,13 @@ export async function publishJob(job) {
     Object.assign(job, { status: 'published', youtubeId: id, publishedAt: new Date(), publishAt, progress: 1 });
   } catch (err) {
     Object.assign(job, { status: 'ready', error: `Upload failed: ${err.message}` });
+    if (job.uploadAttempts < MAX_UPLOAD_RETRIES) {
+      job.uploadAttempts += 1;
+      job.retryAt = new Date(Date.now() + UPLOAD_RETRY_MS);
+      job.note = 'Retrying the upload automatically every 5 minutes.';
+    } else {
+      job.note = 'Automatic retries stopped. Use Retry upload to try again.';
+    }
   }
   await writes;
   await job.save();
@@ -171,10 +186,19 @@ async function autoPublish(job) {
   await publishJob(job);
 }
 
-/** Upload held jobs whose time has come (called by the scheduler). */
+/** Upload held jobs whose time has come, and retry failed uploads (called by the scheduler). */
 export async function publishDueJobs() {
-  const due = await Job.find({ status: 'ready', awaitingPublish: true, scheduledFor: { $lte: new Date() } });
+  const now = new Date();
+  const due = await Job.find({ status: 'ready', awaitingPublish: true, scheduledFor: { $lte: now } });
   for (const job of due) await publishJob(job).catch((err) => console.error('[publish]', job.id, err.message));
+  const retries = await Job.find({ status: 'ready', retryAt: { $lte: now } });
+  for (const job of retries) {
+    await publishJob(job, { retry: true }).catch(async (err) => {
+      // not retryable (YouTube disconnected, etc.): stop retrying and show why
+      console.error('[publish]', job.id, err.message);
+      await Job.updateOne({ _id: job._id }, { $unset: { retryAt: 1 }, error: `Upload failed: ${err.message}`, note: 'Automatic retries stopped.' });
+    });
+  }
 }
 
 async function processNext() {
@@ -215,6 +239,11 @@ export async function startQueue() {
   // recover work interrupted by a restart
   await Job.updateMany({ status: { $in: ['rendering', 'encoding'] } }, { status: 'queued', progress: 0 });
   await Job.updateMany({ status: 'uploading' }, { status: 'ready', error: 'Upload interrupted by restart' });
+  // uploads that failed before automatic retries existed
+  await Job.updateMany(
+    { status: 'ready', error: /^Upload failed/, retryAt: null, uploadAttempts: { $not: { $gte: MAX_UPLOAD_RETRIES } } },
+    { retryAt: new Date() },
+  );
   await ensurePreviews();
   setInterval(processNext, 5000).unref();
 }

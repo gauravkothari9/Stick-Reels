@@ -31,6 +31,8 @@ const jobSchema = new mongoose.Schema(
     scheduledFor: Date, // when the Short should go live
     publishAt: Date, // set when YouTube itself will flip the video public at scheduledFor
     awaitingPublish: { type: Boolean, default: false }, // rendered, held here until scheduledFor
+    retryAt: Date, // upload failed: the scheduler tries again at this time
+    uploadAttempts: { type: Number, default: 0 }, // automatic upload retries so far
     note: String,
     error: String,
   },
