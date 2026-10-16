@@ -28,7 +28,7 @@ export function hasPaidAccess(user) {
 }
 
 export function planOf(user) {
-  if (user?.role === 'admin') return { id: 'admin', ...PLANS.max, name: 'Admin' };
+  if (user?.role === 'admin') return { id: 'admin', ...PLANS.max, name: 'Admin', shortsPerPeriod: Infinity };
   return hasPaidAccess(user) ? { id: user.subscription.plan, ...PLANS[user.subscription.plan] } : null;
 }
 
@@ -36,7 +36,9 @@ export function planOf(user) {
 export async function usage(user) {
   const plan = planOf(user);
   const sub = user.subscription || {};
-  let since = sub.currentStart || user.createdAt;
+  // no billing period (admin, or a subscription before its first charge): count the calendar month
+  const now = new Date();
+  let since = sub.currentStart || new Date(now.getFullYear(), now.getMonth(), 1);
   if (sub.interval === 'yearly' && sub.currentStart) {
     const days = Math.floor((Date.now() - sub.currentStart.getTime()) / 86400000);
     since = new Date(sub.currentStart.getTime() + Math.floor(days / 30) * 30 * 86400000);
@@ -46,7 +48,7 @@ export async function usage(user) {
   return {
     plan: plan?.id || null,
     shortsUsed: used,
-    shortsLimit: plan ? plan.shortsPerPeriod : 0,
+    shortsLimit: plan ? (Number.isFinite(plan.shortsPerPeriod) ? plan.shortsPerPeriod : null) : 0, // null = unlimited
     schedulesUsed: schedules,
     schedulesLimit: plan ? (Number.isFinite(plan.schedules) ? plan.schedules : null) : 0,
     periodStart: since,

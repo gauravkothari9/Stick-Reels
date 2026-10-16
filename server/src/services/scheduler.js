@@ -54,7 +54,8 @@ export async function createSlotJobs(schedule, scheduledFor) {
   const user = await User.findById(schedule.userId);
   if (!hasPaidAccess(user)) return [];
   const u = await usage(user);
-  const count = Math.min(schedule.perSlot, Math.max(0, u.shortsLimit - u.shortsUsed));
+  const left = u.shortsLimit === null ? Infinity : u.shortsLimit - u.shortsUsed;
+  const count = Math.min(schedule.perSlot, Math.max(0, left));
   const priority = ['pro', 'max', 'admin'].includes(planOf(user)?.id) ? 1 : 0;
   const jobs = [];
   for (let i = 0; i < count; i++) {

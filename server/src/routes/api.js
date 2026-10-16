@@ -161,7 +161,7 @@ router.post('/jobs', wrap(async (req, res) => {
   }
 
   const u = await usage(user);
-  const left = u.shortsLimit - u.shortsUsed;
+  const left = u.shortsLimit === null ? Infinity : u.shortsLimit - u.shortsUsed;
   if (left <= 0) return res.status(402).json({ error: `You've used all ${u.shortsLimit} Shorts this month. Upgrade for more.`, code: 'quota' });
   count = Math.min(count, left);
 
