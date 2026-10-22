@@ -119,10 +119,49 @@ export const youtubeReady = async (userId) => isConfigured() && Boolean((await g
 const UPLOAD_RETRY_MS = 5 * 60 * 1000;
 const MAX_UPLOAD_RETRIES = (48 * 60 * 60 * 1000) / UPLOAD_RETRY_MS;
 
+// YouTube's daily upload quota resets at midnight Pacific Time. When a channel hits it, every
+// upload fails until then, so we pause that user's uploads instead of retrying every 5 minutes.
+const QUOTA_REASONS = new Set(['quotaExceeded', 'uploadLimitExceeded', 'dailyLimitExceeded']);
+const QUOTA_NOTE = 'YouTube daily upload limit reached. Will retry automatically after midnight Pacific Time.';
+const quotaPausedUntil = new Map(); // userId -> Date; in memory, so a restart costs at most one extra failed call
+
+/** True when the API error means the daily quota is used up (not a short-lived rate limit). */
+function isQuotaError(err) {
+  const reasons = [...(err.errors || []), ...(err.response?.data?.error?.errors || [])].map((e) => e.reason);
+  return reasons.some((r) => QUOTA_REASONS.has(r)) || /quota/i.test(err.message || '');
+}
+
+/** The next midnight in America/Los_Angeles (handles PST/PDT), plus a few minutes of margin. */
+function nextPacificReset(now = new Date()) {
+  const ptDate = (d) => Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', hourCycle: 'h23' })
+      .formatToParts(d).map((x) => [x.type, Number(x.value)]),
+  );
+  const today = ptDate(now);
+  // Midnight PT is 07:00 or 08:00 UTC depending on daylight saving; pick whichever lands on hour 0.
+  for (const utcHour of [7, 8]) {
+    const candidate = new Date(Date.UTC(today.year, today.month - 1, today.day + 1, utcHour));
+    if (ptDate(candidate).hour === 0) return new Date(candidate.getTime() + 5 * 60 * 1000);
+  }
+  return new Date(now.getTime() + 24 * 60 * 60 * 1000); // fallback, should not happen
+}
+
+/** Hold a job until the quota resets. Does not count against the retry limit. */
+function deferForQuota(job, until) {
+  Object.assign(job, { status: 'ready', retryAt: until, awaitingPublish: false, note: QUOTA_NOTE });
+}
+
 /** `retry` marks an automatic retry by the scheduler; any other call starts the retry count over. */
 export async function publishJob(job, { retry = false } = {}) {
   job.retryAt = undefined;
   if (!retry) job.uploadAttempts = 0;
+  // Channel already over its daily quota: don't call YouTube, just wait for the reset.
+  const pausedUntil = quotaPausedUntil.get(String(job.userId));
+  if (pausedUntil && pausedUntil > new Date()) {
+    deferForQuota(job, pausedUntil);
+    await job.save();
+    return;
+  }
   const settings = await getSettings(job.userId);
   if (!isConfigured()) throw new Error('YouTube uploads are not set up on this platform yet');
   if (!settings.youtube?.tokens) throw new Error('Connect your YouTube channel first');
@@ -159,7 +198,13 @@ export async function publishJob(job, { retry = false } = {}) {
     Object.assign(job, { status: 'published', youtubeId: id, publishedAt: new Date(), publishAt, progress: 1 });
   } catch (err) {
     Object.assign(job, { status: 'ready', error: `Upload failed: ${err.message}` });
-    if (job.uploadAttempts < MAX_UPLOAD_RETRIES) {
+    if (isQuotaError(err)) {
+      // Daily quota hit: pause this channel's uploads until midnight PT and log it once.
+      const until = nextPacificReset();
+      quotaPausedUntil.set(String(job.userId), until);
+      console.warn(`[publish] user ${job.userId} hit YouTube's daily upload quota; pausing uploads until ${until.toISOString()}`);
+      deferForQuota(job, until);
+    } else if (job.uploadAttempts < MAX_UPLOAD_RETRIES) {
       job.uploadAttempts += 1;
       job.retryAt = new Date(Date.now() + UPLOAD_RETRY_MS);
       job.note = 'Retrying the upload automatically every 5 minutes.';
