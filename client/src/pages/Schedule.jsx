@@ -140,6 +140,7 @@ export default function ScheduleSection() {
                   <span>· {s.privacy}</span>
                   <span>· {s.published} published</span>
                   {s.enabled && s.nextRunAt && <span className="next">Next: {formatWhen(s.nextRunAt)}</span>}
+                  {s.enabled && s.note && <span className="next waiting">{s.note}</span>}
                 </div>
 
                 <div className="job-actions">

@@ -284,9 +284,9 @@ export async function startQueue() {
   // recover work interrupted by a restart
   await Job.updateMany({ status: { $in: ['rendering', 'encoding'] } }, { status: 'queued', progress: 0 });
   await Job.updateMany({ status: 'uploading' }, { status: 'ready', error: 'Upload interrupted by restart' });
-  // uploads that failed before automatic retries existed
+  // failed or interrupted uploads that have no retry set (e.g. cut off by this restart)
   await Job.updateMany(
-    { status: 'ready', error: /^Upload failed/, retryAt: null, uploadAttempts: { $not: { $gte: MAX_UPLOAD_RETRIES } } },
+    { status: 'ready', error: /^Upload (failed|interrupted)/, retryAt: null, uploadAttempts: { $not: { $gte: MAX_UPLOAD_RETRIES } } },
     { retryAt: new Date() },
   );
   await ensurePreviews();

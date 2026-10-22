@@ -14,6 +14,8 @@ const scheduleSchema = new mongoose.Schema(
     nextRunAt: Date,
     lastRunAt: Date,
     runs: { type: Number, default: 0 },
+    waitingForUploads: { type: Boolean, default: false }, // slot held until failed uploads go through
+    note: String, // shown on the schedule card while it waits
   },
   { timestamps: true },
 );

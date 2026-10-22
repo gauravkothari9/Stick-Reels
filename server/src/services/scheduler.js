@@ -74,21 +74,47 @@ export async function createSlotJobs(schedule, scheduledFor) {
   return jobs;
 }
 
+const WAITING_NOTE = "Waiting: earlier videos haven't uploaded to YouTube yet. New ones will be made once they are up.";
+
+/** True while one of the user's videos failed to upload and hasn't reached YouTube yet. */
+async function hasPendingUploads(userId) {
+  return Boolean(await Job.exists({
+    userId, kind: 'video', trial: { $ne: true }, status: 'ready', error: /^Upload (failed|interrupted)/,
+  }));
+}
+
 async function tick() {
+  // Retry failed uploads first, so a schedule waiting on them can run in this same tick.
+  await publishDueJobs();
   const now = Date.now();
   const due = await Schedule.find({ userId: { $ne: null }, enabled: true, nextRunAt: { $ne: null, $lte: new Date(now + LEAD_MS) } });
   for (const s of due) {
     const slot = s.nextRunAt;
-    const missed = slot.getTime() < now - GRACE_MS;
+    const held = s.waitingForUploads;
+    // A slot held back for earlier uploads is never "missed": it runs as soon as they are up.
+    const missed = !held && slot.getTime() < now - GRACE_MS;
     if (!missed) {
-      await createSlotJobs(s, slot);
+      if (await hasPendingUploads(s.userId)) {
+        // Earlier videos still need to reach YouTube: keep this slot (nextRunAt unchanged) and check every tick.
+        if (!held) {
+          s.waitingForUploads = true;
+          s.note = WAITING_NOTE;
+          await s.save();
+        }
+        continue;
+      }
+      // A held slot whose time has passed goes out right away.
+      const scheduledFor = new Date(Math.max(slot.getTime(), now));
+      await createSlotJobs(s, scheduledFor);
       s.runs += 1;
-      s.lastRunAt = slot;
+      s.lastRunAt = scheduledFor;
     }
-    s.nextRunAt = nextSlot(s, missed ? new Date(now) : slot);
+    // After a hold, carry on from now: the slots that passed meanwhile don't all fire at once.
+    s.nextRunAt = nextSlot(s, missed ? new Date(now) : held ? new Date(Math.max(slot.getTime(), now)) : slot);
+    s.waitingForUploads = false;
+    s.note = undefined;
     await s.save();
   }
-  await publishDueJobs();
 }
 
 let running = false;
