@@ -5,6 +5,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { config, MEDIA_DIR, ROOT } from './config.js';
 import { Job } from './models/Job.js';
+import admin from './routes/admin.js';
 import api from './routes/api.js';
 import auth from './routes/auth.js';
 import billing, { webhook } from './routes/billing.js';
@@ -12,6 +13,7 @@ import music from './routes/music.js';
 import schedules from './routes/schedules.js';
 import { loadUser, requireAuth } from './services/auth.js';
 import { migrate } from './services/migrate.js';
+import { loadPlanOverrides } from './services/plans.js';
 import { startQueue } from './services/queue.js';
 import { startScheduler } from './services/scheduler.js';
 
@@ -56,6 +58,7 @@ app.get('/media/music/:userId/:file', requireAuth, (req, res) => {
 app.use('/media', (_req, res) => res.status(404).end());
 
 // --- API ----------------------------------------------------------------------------
+app.use('/api/admin', admin);
 app.use('/api/auth', auth);
 app.use('/api/billing', billing);
 app.use('/api/music', music);
@@ -81,6 +84,7 @@ app.use((err, _req, res, _next) => {
 
 await mongoose.connect(config.mongoUri);
 await migrate();
+await loadPlanOverrides();
 fs.mkdirSync(path.join(MEDIA_DIR, 'videos'), { recursive: true });
 fs.mkdirSync(path.join(MEDIA_DIR, 'previews'), { recursive: true });
 fs.mkdirSync(path.join(MEDIA_DIR, 'music'), { recursive: true });

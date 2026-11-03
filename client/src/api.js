@@ -33,6 +33,10 @@ export const api = {
   verifyPayment: (resp) => request('POST', '/api/billing/verify', resp),
   refreshBilling: () => request('POST', '/api/billing/refresh'),
   cancelPlan: () => request('POST', '/api/billing/cancel'),
+  // admin
+  adminPlans: () => request('GET', '/api/admin/plans'),
+  savePlan: (id, plan) => request('PUT', `/api/admin/plans/${id}`, plan),
+  adminUsers: (q = '') => request('GET', `/api/admin/users?q=${encodeURIComponent(q)}`),
   // platform
   categories: () => request('GET', '/api/categories'),
   settings: () => request('GET', '/api/settings'),

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CalendarClock, CheckCircle2, Clapperboard, Copy, CreditCard, KeyRound, Lock, LogOut, Pencil, Settings2, Tag, Trash2, UserRound } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clapperboard, Copy, CreditCard, IndianRupee, KeyRound, Lock, LogOut, Pencil, Settings2, Tag, Trash2, UserRound, Users } from 'lucide-react';
 import { api } from '../api';
+import { PricingAdminSection, UsersAdminSection } from './Admin';
 import JobCard from '../components/JobCard';
 import MusicCard from '../components/MusicCard';
 import ScheduleSection from './Schedule';
@@ -16,12 +17,19 @@ const SECTIONS = [
   { id: 'schedule', label: 'Schedule', icon: CalendarClock },
   { id: 'settings', label: 'Video settings', icon: Settings2 },
 ];
+const ADMIN_SECTIONS = [
+  { id: 'pricing', label: 'Pricing', icon: IndianRupee },
+  { id: 'users', label: 'User accounts', icon: Users },
+];
+const ALL_SECTIONS = [...SECTIONS, ...ADMIN_SECTIONS];
 
 export default function Profile() {
   const { section } = useParams();
   const [params, setParams] = useSearchParams();
-  const { notify, jobs } = useStore();
+  const { notify, jobs, user } = useStore();
   const navigate = useNavigate();
+  const isAdmin = user?.role === 'admin';
+  const sections = isAdmin ? ALL_SECTIONS : SECTIONS;
 
   useEffect(() => {
     const yt = params.get('youtube');
@@ -32,19 +40,24 @@ export default function Profile() {
   }, [params, setParams, notify]);
 
   useEffect(() => {
-    if (!SECTIONS.some((s) => s.id === section)) navigate('/profile/account', { replace: true });
-  }, [section, navigate]);
+    if (!user) return;
+    if (!sections.some((s) => s.id === section)) navigate('/profile/account', { replace: true });
+  }, [section, navigate, sections, user]);
+
+  const link = ({ id, label, icon: Icon }) => (
+    <NavLink key={id} to={`/profile/${id}`}>
+      <Icon size={16} /> {label}
+      {id === 'shorts' && jobs.length > 0 && <span className="nav-count">{jobs.length}</span>}
+    </NavLink>
+  );
 
   return (
     <div className="profile">
       <aside className="profile-nav">
         <h1>Profile</h1>
-        {SECTIONS.map(({ id, label, icon: Icon }) => (
-          <NavLink key={id} to={`/profile/${id}`}>
-            <Icon size={16} /> {label}
-            {id === 'shorts' && jobs.length > 0 && <span className="nav-count">{jobs.length}</span>}
-          </NavLink>
-        ))}
+        {SECTIONS.map(link)}
+        {isAdmin && <span className="profile-nav-group">Admin</span>}
+        {isAdmin && ADMIN_SECTIONS.map(link)}
       </aside>
       <div className="profile-content">
         {section === 'account' && <AccountSection />}
@@ -52,6 +65,8 @@ export default function Profile() {
         {section === 'shorts' && <ShortsSection />}
         {section === 'schedule' && <ScheduleSection />}
         {section === 'settings' && <SettingsSection />}
+        {isAdmin && section === 'pricing' && <PricingAdminSection />}
+        {isAdmin && section === 'users' && <UsersAdminSection />}
       </div>
     </div>
   );
