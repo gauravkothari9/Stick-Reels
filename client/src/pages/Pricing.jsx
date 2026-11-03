@@ -53,6 +53,16 @@ export default function Pricing() {
   const [period, setPeriod] = useState('monthly');
   const { checkout, pending } = useCheckout();
   const current = account?.user?.subscription;
+  // Yearly saving from the live prices: "N months free" when every plan matches, else the best % off.
+  const yearlyLabel = (() => {
+    const ps = (data?.plans || []).filter((p) => p.monthly > 0 && p.yearly > 0);
+    if (!ps.length) return null;
+    const free = ps.map((p) => 12 - p.yearly / p.monthly);
+    if (free.every((f) => f <= 0)) return null;
+    const n = Math.round(free[0]);
+    if (free.every((f) => Math.abs(f - n) < 0.01) && n > 0) return `${n} month${n === 1 ? '' : 's'} free`;
+    return `save up to ${Math.max(...ps.map((p) => Math.floor((1 - p.yearly / (p.monthly * 12)) * 100)))}%`;
+  })();
 
   useEffect(() => {
     api.plans().then(setData).catch(() => setData({ plans: [], configured: false }));
@@ -72,7 +82,7 @@ export default function Pricing() {
         <div className="segmented billing-toggle" role="tablist">
           <button type="button" className={period === 'monthly' ? 'on' : ''} onClick={() => setPeriod('monthly')}>Monthly</button>
           <button type="button" className={period === 'yearly' ? 'on' : ''} onClick={() => setPeriod('yearly')}>
-            Yearly <span className="save">2 months free</span>
+            Yearly {yearlyLabel && <span className="save">{yearlyLabel}</span>}
           </button>
         </div>
       </section>

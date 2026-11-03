@@ -1,13 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { Repeat, Search, Shuffle } from 'lucide-react';
 import CategoryCard from '../components/CategoryCard';
 import CreateModal from '../components/CreateModal';
-import { useStore } from '../store';
+import { rupees, useStore } from '../store';
 
 export default function Dashboard() {
   const { categories, jobs, loadJobs, notify, categoryNames, hasPlan, account } = useStore();
+  const [fromPrice, setFromPrice] = useState(null); // cheapest monthly plan, from the live plans
+  useEffect(() => {
+    if (!account || hasPlan) return;
+    api.plans().then((d) => {
+      const prices = d.plans.map((p) => p.monthly).filter((n) => n > 0);
+      if (prices.length) setFromPrice(Math.min(...prices));
+    }).catch(() => {});
+  }, [account, hasPlan]);
   const [selected, setSelected] = useState(null);
   const [group, setGroup] = useState('All');
   const [query, setQuery] = useState('');
@@ -58,7 +66,7 @@ export default function Dashboard() {
           <span>
             <strong>Free account.</strong>{' '}
             {account.usage.trialLeft ? 'Create 1 trial Short to see what Stick Reels can do.' : 'Your trial Short is used.'}
-            {' '}Plans start at ₹500/month with YouTube uploads, scheduling and music.
+            {' '}{fromPrice ? `Plans start at ${rupees(fromPrice)}/month` : 'Paid plans include'} with YouTube uploads, scheduling and music.
           </span>
           <Link to="/pricing" className="btn primary sm">See plans</Link>
         </div>
