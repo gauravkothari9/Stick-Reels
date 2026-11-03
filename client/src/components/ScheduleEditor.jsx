@@ -15,7 +15,7 @@ const allTimezones = (() => {
 })();
 
 export default function ScheduleEditor({ schedule, onClose, onSaved }) {
-  const { categories, settings, notify } = useStore();
+  const { categories, settings, notify, canUseStyle } = useStore();
   const [form, setForm] = useState(() => schedule
     ? { ...schedule }
     : { name: '', categories: [], days: [1, 3, 5], times: ['18:00'], timezone: browserTz,
@@ -160,10 +160,15 @@ export default function ScheduleEditor({ schedule, onClose, onSaved }) {
                     <div key={group}>
                       <span className="group-label">{group}</span>
                       <div className="row wrap">
-                        {list.map((c) => (
-                          <button key={c.id} type="button" className={`filter-chip${form.categories.includes(c.id) ? ' active' : ''}`}
-                            onClick={() => toggleCat(c.id)}>{c.name}</button>
-                        ))}
+                        {list.map((c) => {
+                          const locked = !canUseStyle(c.id);
+                          return (
+                            <button key={c.id} type="button" disabled={locked}
+                              className={`filter-chip${form.categories.includes(c.id) ? ' active' : ''}${locked ? ' locked' : ''}`}
+                              title={locked ? `On the ${{ basic: 'Basic', pro: 'Pro', max: 'Max' }[c.plan] || 'higher'} plan` : undefined}
+                              onClick={() => toggleCat(c.id)}>{c.name}</button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

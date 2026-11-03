@@ -5,7 +5,7 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const MEDIA_DIR = path.join(ROOT, 'media');
 
 export const config = {
-  port: Number(process.env.PORT || 5000),
+  port: Number(process.env.PORT || 5001),
   // 127.0.0.1 in production so only the HTTPS proxy (Caddy) can reach the app; all interfaces locally.
   host: process.env.HOST || undefined,
   mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/stick-reels',

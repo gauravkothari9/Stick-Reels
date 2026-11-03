@@ -2,8 +2,7 @@ import { DateTime } from 'luxon';
 import { Job } from '../models/Job.js';
 import { Schedule } from '../models/Schedule.js';
 import { User } from '../models/User.js';
-import { hasPaidAccess, planOf, usage } from './plans.js';
-import { categories } from './categories.js';
+import { allowedStyles, hasPaidAccess, hasPriority, usage } from './plans.js';
 import { kick, publishDueJobs } from './queue.js';
 
 const TICK_MS = 30 * 1000;
@@ -40,10 +39,11 @@ export async function upcomingSlots(userId, limit = 12) {
   return out.sort((a, b) => a.at - b.at).slice(0, limit);
 }
 
-function pickCategory(schedule, index) {
-  const pool = schedule.categories.length ? schedule.categories : categories.map((c) => c.id);
-  // rotate through the chosen styles; with "any style" pick at random
-  return schedule.categories.length ? pool[index % pool.length] : pool[Math.floor(Math.random() * pool.length)];
+function pickCategory(schedule, index, allowed) {
+  // Only styles the owner's plan unlocks (a downgrade drops the rest from the rotation).
+  const chosen = schedule.categories.filter((c) => allowed.includes(c));
+  // rotate through the chosen styles; with "any style" (or none left) pick at random
+  return chosen.length ? chosen[index % chosen.length] : allowed[Math.floor(Math.random() * allowed.length)];
 }
 
 /**
@@ -56,14 +56,15 @@ export async function createSlotJobs(schedule, scheduledFor) {
   const u = await usage(user);
   const left = u.shortsLimit === null ? Infinity : u.shortsLimit - u.shortsUsed;
   const count = Math.min(schedule.perSlot, Math.max(0, left));
-  const priority = ['pro', 'max', 'admin'].includes(planOf(user)?.id) ? 1 : 0;
+  const priority = hasPriority(user) ? 1 : 0;
+  const allowed = allowedStyles(user);
   const jobs = [];
   for (let i = 0; i < count; i++) {
     jobs.push(await Job.create({
       kind: 'video',
       userId: schedule.userId,
       priority,
-      category: pickCategory(schedule, schedule.runs * schedule.perSlot + i),
+      category: pickCategory(schedule, schedule.runs * schedule.perSlot + i, allowed),
       autoUpload: true,
       privacy: schedule.privacy,
       scheduleId: schedule._id,

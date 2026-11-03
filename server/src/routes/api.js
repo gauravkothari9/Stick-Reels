@@ -9,7 +9,7 @@ import { User } from '../models/User.js';
 import { requireAdmin, requireAuth, requirePlan } from '../services/auth.js';
 import { categories, categoryById, randomCategory } from '../services/categories.js';
 import { updateEnvFile } from '../services/envFile.js';
-import { hasPaidAccess, planOf, usage } from '../services/plans.js';
+import { allowedStyles, hasPaidAccess, hasPriority, planForStyle, styleError, usage } from '../services/plans.js';
 import { ensurePreviews, kick, previewPath, publishJob, youtubeReady } from '../services/queue.js';
 import { authUrl, handleCallback, isConfigured } from '../services/youtube.js';
 
@@ -46,6 +46,7 @@ router.get('/categories', wrap(async (req, res) => {
       description: c.description,
       hashtags: c.hashtags,
       published: counts[c.id] || 0,
+      plan: planForStyle(c.id), // cheapest plan that unlocks it
       previewUrl: exists ? `/media/previews/${c.id}.mp4?v=${v}` : null,
       posterUrl: exists ? `/media/previews/${c.id}.jpg?v=${v}` : null,
     };
@@ -160,6 +161,14 @@ router.post('/jobs', wrap(async (req, res) => {
     return res.status(201).json([job]);
   }
 
+  // Paid plans unlock only their share of the styles; "random" picks among those.
+  if (requested !== 'random') {
+    const blocked = styleError(user, requested);
+    if (blocked) return res.status(402).json({ error: blocked, code: 'style' });
+  }
+  const allowed = allowedStyles(user);
+  const pick = () => (requested === 'random' ? allowed[Math.floor(Math.random() * allowed.length)] : requested);
+
   const u = await usage(user);
   const left = u.shortsLimit === null ? Infinity : u.shortsLimit - u.shortsUsed;
   if (left <= 0) return res.status(402).json({ error: `You've used all ${u.shortsLimit} Shorts this month. Upgrade for more.`, code: 'quota' });
@@ -174,14 +183,14 @@ router.post('/jobs', wrap(async (req, res) => {
     }
   }
   const settings = await getSettings(user._id);
-  const priority = ['pro', 'max', 'admin'].includes(planOf(user)?.id) ? 1 : 0;
+  const priority = hasPriority(user) ? 1 : 0;
   const jobs = [];
   for (let i = 0; i < count; i++) {
     jobs.push(await Job.create({
       kind: 'video',
       userId: user._id,
       priority,
-      category: requested === 'random' ? randomCategory() : requested,
+      category: pick(),
       autoUpload: Boolean(scheduledFor), // unscheduled Shorts are only rendered; upload is manual
       privacy: ['public', 'unlisted', 'private'].includes(req.body.privacy) ? req.body.privacy : settings.privacy,
       scheduledFor,

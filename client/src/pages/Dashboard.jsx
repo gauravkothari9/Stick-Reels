@@ -7,7 +7,7 @@ import CreateModal from '../components/CreateModal';
 import { rupees, useStore } from '../store';
 
 export default function Dashboard() {
-  const { categories, jobs, loadJobs, notify, categoryNames, hasPlan, account } = useStore();
+  const { categories, jobs, loadJobs, notify, categoryNames, hasPlan, account, canUseStyle } = useStore();
   const [fromPrice, setFromPrice] = useState(null); // cheapest monthly plan, from the live plans
   useEffect(() => {
     if (!account || hasPlan) return;
@@ -35,10 +35,22 @@ export default function Dashboard() {
     }
   };
 
-  const groups = useMemo(() => ['All', ...new Set(categories.map((c) => c.group))], [categories]);
+  const unlockedCount = categories.filter((c) => canUseStyle(c.id)).length;
+  const limited = hasPlan && unlockedCount < categories.length;
+  const groups = useMemo(() => ['All', ...(limited ? ['Unlocked'] : []), ...new Set(categories.map((c) => c.group))], [categories, limited]);
+  const inGroup = (c, g) => g === 'All' || (g === 'Unlocked' ? canUseStyle(c.id) : c.group === g);
   const visible = categories.filter((c) =>
-    (group === 'All' || c.group === group) &&
-    (!query || `${c.name} ${c.description} ${c.hashtags.join(' ')}`.toLowerCase().includes(query.toLowerCase())));
+    inGroup(c, group) &&
+    (!query || `${c.name} ${c.description} ${c.hashtags.join(' ')}`.toLowerCase().includes(query.toLowerCase())))
+    // unlocked styles first, so a plan's own styles are what you see
+    .sort((a, b) => Number(!canUseStyle(a.id)) - Number(!canUseStyle(b.id)));
+  const unlocked = unlockedCount;
+  const select = (c) => {
+    if (canUseStyle(c.id)) return setSelected(c);
+    const plan = { basic: 'Basic', pro: 'Pro', max: 'Max' }[c.plan] || 'a higher';
+    notify(`${c.name} is on the ${plan} plan. Upgrade to use it.`, 'error');
+    navigate('/profile/billing');
+  };
 
   const published = jobs.filter((j) => j.status === 'published').length;
   const inQueue = jobs.filter((j) => ['queued', 'rendering', 'encoding', 'uploading'].includes(j.status)).length;
@@ -54,7 +66,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="stats">
-          <div><strong>{categories.length}</strong><span>styles</span></div>
+          <div><strong>{hasPlan ? `${unlocked}/${categories.length}` : categories.length}</strong><span>{hasPlan ? 'styles unlocked' : 'styles'}</span></div>
           <div><strong>{jobs.length}</strong><span>Shorts made</span></div>
           <div><strong>{published}</strong><span>published</span></div>
           <div><strong>{inQueue}</strong><span>in progress</span></div>
@@ -93,14 +105,14 @@ export default function Dashboard() {
           {groups.map((g) => (
             <button key={g} role="tab" aria-selected={g === group} className={`filter-chip${g === group ? ' active' : ''}`} onClick={() => setGroup(g)}>
               {g}
-              <span>{g === 'All' ? categories.length : categories.filter((c) => c.group === g).length}</span>
+              <span>{categories.filter((c) => inGroup(c, g)).length}</span>
             </button>
           ))}
         </div>
 
         {visible.length ? (
           <div className="category-grid">
-            {visible.map((c) => <CategoryCard key={c.id} category={c} onSelect={setSelected} />)}
+            {visible.map((c) => <CategoryCard key={c.id} category={c} onSelect={select} locked={!canUseStyle(c.id)} />)}
           </div>
         ) : (
           <div className="empty">No styles match “{query}”.</div>

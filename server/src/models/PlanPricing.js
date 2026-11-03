@@ -7,6 +7,7 @@ const planPricingSchema = new mongoose.Schema({
   monthly: { type: Number, min: 1 },
   yearly: { type: Number, min: 1 },
   shortsPerPeriod: { type: Number, min: 1 },
+  styles: { type: Number, min: 1, default: undefined }, // null = all styles; absent = code default
   schedules: { type: Number, min: 1, default: null }, // null = unlimited
   features: { type: [String], default: undefined },
 }, { timestamps: true });

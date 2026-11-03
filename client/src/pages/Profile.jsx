@@ -255,6 +255,11 @@ function BillingSection() {
           <>
             <Meter label="Shorts this month" used={u.shortsUsed} limit={u.shortsLimit} />
             <Meter label="Schedules" used={u.schedulesUsed} limit={u.schedulesLimit} />
+            {u.allowedStyles && (
+              <p className="hint">
+                {u.stylesLimit == null ? 'Every style is unlocked.' : `${u.allowedStyles.length} styles unlocked. Higher plans unlock more.`}
+              </p>
+            )}
           </>
         )}
         <div className="row">

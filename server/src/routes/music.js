@@ -5,14 +5,14 @@ import { MEDIA_DIR } from '../config.js';
 import { Job } from '../models/Job.js';
 import { MUSIC_MOODS as MOODS, getSettings } from '../models/Settings.js';
 import { rateLimit, requireAuth } from '../services/auth.js';
-import { planOf } from '../services/plans.js';
+import { canUploadMusic } from '../services/plans.js';
 import { runPython, userMusicDir } from '../services/queue.js';
 
 const router = Router();
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 const SAMPLE_DIR = path.join(MEDIA_DIR, 'music-samples');
 const AUDIO_EXT = new Set(['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac']);
-const canUploadMusic = (user) => ['pro', 'max', 'admin'].includes(planOf(user)?.id);
+// Own music upload is a plan perk (Pro and Max by default); see services/plans.js.
 
 router.use(requireAuth);
 

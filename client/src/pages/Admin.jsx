@@ -10,6 +10,7 @@ const toForm = (p) => ({
   yearly: String(p.yearly),
   shortsPerPeriod: String(p.shortsPerPeriod),
   schedules: p.schedules == null ? '' : String(p.schedules),
+  styles: p.styles == null || p.styles >= p.totalStyles ? '' : String(p.styles),
   features: p.features.join('\n'),
 });
 
@@ -57,6 +58,7 @@ function PlanEditor({ plan, onSaved }) {
         yearly: Number(form.yearly),
         shortsPerPeriod: Number(form.shortsPerPeriod),
         schedules: form.schedules.trim() === '' ? null : Number(form.schedules),
+        styles: form.styles.trim() === '' ? null : Number(form.styles),
         features: form.features.split('\n'),
       });
       onSaved(saved);
@@ -96,6 +98,10 @@ function PlanEditor({ plan, onSaved }) {
           <label className="stack">
             <span className="label">Autopilot schedules</span>
             <input type="number" min={1} step={1} inputMode="numeric" placeholder="Blank = unlimited" value={form.schedules} onChange={set('schedules')} />
+          </label>
+          <label className="stack">
+            <span className="label">Styles unlocked</span>
+            <input type="number" min={1} max={plan.totalStyles || 52} step={1} inputMode="numeric" placeholder="Blank = all styles" value={form.styles} onChange={set('styles')} />
           </label>
         </div>
         <label className="stack">

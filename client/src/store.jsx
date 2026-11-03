@@ -76,13 +76,21 @@ export function StoreProvider({ children }) {
     setAccount(null);
   }, []);
 
+  // Styles this account can make: paid plans unlock a share; free accounts may try any style once.
+  const allowed = useMemo(
+    () => (account?.access && account.usage?.allowedStyles ? new Set(account.usage.allowedStyles) : null),
+    [account],
+  );
+  const canUseStyle = useCallback((id) => !allowed || allowed.has(id), [allowed]);
+
   const value = useMemo(() => ({
     account, setAccount, loadAccount, logout,
     user: account?.user || null,
     hasPlan: Boolean(account?.access),
     categories, settings, setSettings, saveSettings, jobs, loadJobs, loadCategories, notify, toast,
     categoryNames: Object.fromEntries(categories.map((c) => [c.id, c.name])),
-  }), [account, loadAccount, logout, categories, settings, saveSettings, jobs, loadJobs, loadCategories, notify, toast]);
+    canUseStyle,
+  }), [account, loadAccount, logout, categories, settings, saveSettings, jobs, loadJobs, loadCategories, notify, toast, canUseStyle]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

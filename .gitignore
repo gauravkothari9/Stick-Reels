@@ -9,3 +9,5 @@ media/
 *.pem
 *.key
 stick-reels-deploy.tar.gz
+
+.taste-skill/

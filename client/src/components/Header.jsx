@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { ChevronDown, CreditCard, Crown, LayoutGrid, LogOut, UserRound } from 'lucide-react';
+import { CalendarClock, ChevronDown, Clapperboard, CreditCard, Crown, LayoutGrid, LogOut, UserRound } from 'lucide-react';
 import { useStore } from '../store';
 import YoutubeIcon from './YoutubeIcon';
 
@@ -58,7 +58,7 @@ export default function Header() {
       <div className="topbar-left">
         <Link to="/" className="brand">
           <img className="logo" src="/logo-mark.png" alt="" />
-          <span>Stick <span className="brand-accent">Reels</span></span>
+          <span className="brand-name">Stick <span className="brand-accent">Reels</span></span>
         </Link>
         {account && (
           <nav className="nav">
@@ -96,6 +96,18 @@ export default function Header() {
           ))}
           <UserMenu />
         </div>
+      )}
+
+      {/* Phones: the main sections as a bottom tab bar, within thumb reach */}
+      {account && (
+        <nav className="tabbar" aria-label="Main">
+          <NavLink to="/" end><LayoutGrid size={20} /><span>Styles</span></NavLink>
+          <NavLink to="/profile/shorts"><Clapperboard size={20} /><span>Shorts</span></NavLink>
+          <NavLink to="/profile/schedule"><CalendarClock size={20} /><span>Autopilot</span></NavLink>
+          {hasPlan
+            ? <NavLink to="/profile/account"><UserRound size={20} /><span>Profile</span></NavLink>
+            : <NavLink to="/pricing"><Crown size={20} /><span>Plans</span></NavLink>}
+        </nav>
       )}
     </header>
   );

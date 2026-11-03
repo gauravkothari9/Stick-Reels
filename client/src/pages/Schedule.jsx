@@ -81,7 +81,7 @@ export default function ScheduleSection() {
         <div className="stats">
           <div><strong>{schedules?.filter((s) => s.enabled).length ?? '–'}</strong><span>active</span></div>
           <div><strong>{perWeek}</strong><span>Shorts / week</span></div>
-          <div><strong>{schedules?.reduce((n, s) => n + s.published, 0) ?? '–'}</strong><span>published</span></div>
+          <div><strong>{schedules?.reduce((n, s) => n + (s.published || 0), 0) ?? '–'}</strong><span>published</span></div>
         </div>
       </section>
 

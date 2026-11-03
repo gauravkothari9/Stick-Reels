@@ -5,9 +5,19 @@ import { authEvents } from './api';
 import Header from './components/Header';
 import { Login, Signup } from './pages/Auth';
 import Dashboard from './pages/Dashboard';
+import Landing from './pages/Landing';
 import Pricing from './pages/Pricing';
 import Profile from './pages/Profile';
 import { useStore } from './store';
+
+const SIGNED_IN_KEY = 'sr-signed-in';
+function wasSignedIn() {
+  try {
+    return localStorage.getItem(SIGNED_IN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function ScheduleRedirect() {
   const { search } = useLocation();
@@ -24,8 +34,9 @@ function Protected({ children }) {
 }
 
 export default function App() {
-  const { toast, notify } = useStore();
+  const { toast, notify, account } = useStore();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   // Any request that needs a plan (402) lands the user on Pricing with the reason.
   useEffect(() => {
@@ -36,6 +47,24 @@ export default function App() {
     authEvents.addEventListener('paywall', onPaywall);
     return () => authEvents.removeEventListener('paywall', onPaywall);
   }, [navigate, notify]);
+
+  // Remember whether this browser was signed in, so the landing page can paint before the session check returns.
+  useEffect(() => {
+    if (account === undefined) return;
+    try {
+      if (account) localStorage.setItem(SIGNED_IN_KEY, '1');
+      else localStorage.removeItem(SIGNED_IN_KEY);
+    } catch { /* storage blocked */ }
+  }, [account]);
+
+  // Full-bleed pages without the app shell: the landing page for logged-out visitors on "/",
+  // and the log in / sign up screens.
+  const toastEl = toast && <div className={`toast ${toast.tone}`} role="status">{toast.text}</div>;
+  if (pathname === '/' && (account === null || (account === undefined && !wasSignedIn()))) {
+    return <><Landing />{toastEl}</>;
+  }
+  if (pathname === '/login') return <><Login />{toastEl}</>;
+  if (pathname === '/signup') return <><Signup />{toastEl}</>;
 
   return (
     <div className="app">

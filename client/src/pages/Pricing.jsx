@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Check, Loader2, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import PlanTable from '../components/PlanTable';
 import { api, loadRazorpay } from '../api';
-import { rupees, useStore } from '../store';
+import { useStore } from '../store';
 
 /** Opens Razorpay Checkout for a plan; resolves true once payment is verified by our server. */
 export function useCheckout() {
@@ -20,7 +21,7 @@ export function useCheckout() {
           name: order.name,
           description: order.description,
           prefill: { name: user?.name, email: user?.email },
-          theme: { color: '#8b5cf6' },
+          theme: { color: '#048afc' },
           handler: async (resp) => {
             try {
               setAccount(await api.verifyPayment(resp));
@@ -76,9 +77,8 @@ export default function Pricing() {
   return (
     <div className="pricing">
       <section className="pricing-hero">
-        <span className="eyebrow"><Sparkles size={12} /> Plans</span>
         <h1>Grow your channel on autopilot</h1>
-        <p className="muted">Registration is free and includes one trial Short. Pick a plan to upload to YouTube, schedule, and create more.</p>
+        <p className="muted">Sign up free and make one trial Short. A plan adds YouTube uploads, autopilot schedules and more styles.</p>
         <div className="segmented billing-toggle" role="tablist">
           <button type="button" className={period === 'monthly' ? 'on' : ''} onClick={() => setPeriod('monthly')}>Monthly</button>
           <button type="button" className={period === 'yearly' ? 'on' : ''} onClick={() => setPeriod('yearly')}>
@@ -94,32 +94,27 @@ export default function Pricing() {
       {!data ? (
         <div className="empty"><Loader2 className="spin" size={22} /></div>
       ) : (
-        <div className="plan-grid">
-          {data.plans.map((p) => {
-            const price = period === 'monthly' ? p.monthly : p.yearly;
-            const isCurrent = hasPlan && current?.plan === p.id && current?.interval === period;
-            const busy = pending === `${p.id}:${period}`;
+        <PlanTable
+          plans={data.plans}
+          period={period}
+          title="Compare plans"
+          action={(id) => {
+            if (id === 'free') {
+              if (!account) return <Link to="/signup" className="btn ghost block">Sign up free</Link>;
+              return <span className="plan-table-note">{hasPlan ? 'Included with every account' : 'Your current plan'}</span>;
+            }
+            const p = data.plans.find((x) => x.id === id);
+            const isCurrent = hasPlan && current?.plan === id && current?.interval === period;
+            const busy = pending === `${id}:${period}`;
             return (
-              <article key={p.id} className={`plan-card${p.id === 'pro' ? ' featured' : ''}`}>
-                {p.id === 'pro' && <span className="plan-flag">Most popular</span>}
-                <h2>{p.name}</h2>
-                <div className="plan-price">
-                  <strong>{rupees(price)}</strong>
-                  <span className="muted">/{period === 'monthly' ? 'month' : 'year'}</span>
-                </div>
-                {period === 'yearly' && <span className="plan-sub muted">{rupees(Math.round(p.yearly / 12))}/month, billed yearly</span>}
-                <ul>
-                  {p.features.map((f) => <li key={f}><Check size={15} /> {f}</li>)}
-                </ul>
-                <button className={`btn ${p.id === 'pro' ? 'primary' : 'ghost'} block`} disabled={isCurrent || Boolean(pending) || !data.configured}
-                  onClick={() => choose(p.id)}>
-                  {busy && <Loader2 className="spin" size={15} />}
-                  {isCurrent ? 'Current plan' : hasPlan ? `Switch to ${p.name}` : `Choose ${p.name}`}
-                </button>
-              </article>
+              <button className={`btn ${id === 'pro' ? 'primary' : 'ghost'} block`} disabled={isCurrent || Boolean(pending) || !data.configured}
+                onClick={() => choose(id)}>
+                {busy && <Loader2 className="spin" size={15} />}
+                {isCurrent ? 'Current plan' : hasPlan ? `Switch to ${p.name}` : `Choose ${p.name}`}
+              </button>
             );
-          })}
-        </div>
+          }}
+        />
       )}
       <p className="hint center">
         Prices in INR, taxes as applicable. Subscriptions renew automatically through Razorpay (UPI, cards, netbanking).

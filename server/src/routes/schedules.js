@@ -5,7 +5,7 @@ import { Schedule } from '../models/Schedule.js';
 import { categoryById } from '../services/categories.js';
 import { createSlotJobs, nextSlot, upcomingSlots } from '../services/scheduler.js';
 import { requireAuth, requirePlan } from '../services/auth.js';
-import { usage } from '../services/plans.js';
+import { styleError, usage } from '../services/plans.js';
 
 const router = Router();
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -14,7 +14,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 router.use(requireAuth);
 
 /** Validate a schedule payload; returns [fields, error]. */
-function parse(body) {
+function parse(body, user) {
   const name = String(body.name || '').trim().slice(0, 60);
   if (!name) return [null, 'Give the schedule a name'];
   const days = [...new Set((body.days || []).map(Number))].filter((d) => d >= 1 && d <= 7).sort();
@@ -25,6 +25,8 @@ function parse(body) {
   if (!DateTime.local().setZone(timezone).isValid) return [null, 'Unknown timezone'];
   const categories = [...new Set(body.categories || [])];
   if (!categories.every((c) => categoryById[c])) return [null, 'Unknown style in list'];
+  const locked = categories.map((c) => styleError(user, c)).find(Boolean);
+  if (locked) return [null, locked];
   const privacy = ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : 'public';
   const perSlot = Math.max(1, Math.min(Number(body.perSlot) || 1, 3));
   return [{ name, days, times: times.sort(), timezone, categories, privacy, perSlot, enabled: body.enabled !== false }, null];
@@ -44,7 +46,7 @@ router.get('/upcoming', wrap(async (req, res) => {
 }));
 
 router.post('/', requirePlan, wrap(async (req, res) => {
-  const [fields, error] = parse(req.body);
+  const [fields, error] = parse(req.body, req.user);
   if (error) return res.status(400).json({ error });
   const u = await usage(req.user);
   if (u.schedulesLimit !== null && u.schedulesUsed >= u.schedulesLimit) {
@@ -65,7 +67,7 @@ const load = async (req, res) => {
 router.put('/:id', wrap(async (req, res) => {
   const s = await load(req, res);
   if (!s) return;
-  const [fields, error] = parse(req.body);
+  const [fields, error] = parse(req.body, req.user);
   if (error) return res.status(400).json({ error });
   Object.assign(s, fields);
   s.nextRunAt = s.enabled ? nextSlot(s) : null;

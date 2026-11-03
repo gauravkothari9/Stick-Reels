@@ -58,12 +58,14 @@ To add a style:
 - **Free accounts** can browse all styles and create **1 watermarked trial Short**. They can't upload it, schedule, or create more.
 - **Plans** (Razorpay subscriptions in INR; yearly = 10× monthly):
 
-  | Plan  | Monthly | Yearly  | Shorts / month | Schedules | Own music upload |
-  |-------|---------|---------|----------------|-----------|------------------|
-  | Basic | ₹500    | ₹5,000  | 30             | 1         | —                |
-  | Pro   | ₹1,200  | ₹12,000 | 120            | 5         | ✓                |
-  | Max   | ₹2,500  | ₹25,000 | 400            | unlimited | ✓                |
+  | Plan  | Monthly | Yearly  | Shorts / month  | Schedules | Styles      | Upload | Watermark | Own music | Rendering |
+  |-------|---------|---------|-----------------|-----------|-------------|--------|-----------|-----------|-----------|
+  | Free  | ₹0      | —       | 1 trial Short   | —         | browse all 52 | —    | yes       | —         | standard  |
+  | Basic | ₹2,000  | ₹20,000 | 10              | 1         | 5           | auto   | none      | —         | standard  |
+  | Pro   | ₹3,000  | ₹30,000 | 30              | 3         | 30          | auto   | none      | ✓         | priority  |
+  | Max   | ₹5,000  | ₹50,000 | 400             | unlimited | 52          | auto   | none      | ✓         | priority  |
 
+  Plans unlock styles in a fixed order (`STYLE_ORDER` in `server/src/services/plans.js`): the seven featured styles first, then the rest of `engine/categories.json`. Locked styles show a lock and the plan they need; schedules only use unlocked styles.
   Prices and limits are in `server/src/services/plans.js`. Pro and Max Shorts render first when the queue is busy.
 - **Per-user data:** each user has their own Shorts, schedules, settings, music library and YouTube channel. Video files are only served to their owner.
 - **Profile → Plan & billing:** shows usage and the renewal date, and has Change plan and Cancel. A cancelled plan keeps working until the end of the paid period.
@@ -134,10 +136,10 @@ Requirements: Node 20+, MongoDB running locally (or an Atlas URI), and [uv](http
 uv sync                                   # Python engine deps (moviepy, pillow, numpy)
 cd server; npm install; copy .env.example .env; cd ..
 cd client; npm install; npm run build; cd ..
-cd server; npm start                      # http://localhost:5000
+cd server; npm start                      # http://localhost:5001
 ```
 
-For development with hot reload, run `npm run dev` in both `server/` and `client/`, then open http://localhost:5173.
+For development with hot reload, run `npm run dev` in both `server/` and `client/`, then open http://localhost:5175.
 
 The first time the server starts, it renders a small looping preview for every style card. This takes about 1 minute in total.
 
@@ -146,7 +148,7 @@ The first time the server starts, it renders a small looping preview for every s
 1. In Google Cloud Console, create a project and enable **YouTube Data API v3**.
 2. Configure the **OAuth consent screen** as External and add your Google account as a test user.
 3. Go to Credentials, click **Create OAuth client ID**, and choose **Web application**. Add this authorized redirect URI:
-   `http://localhost:5000/api/youtube/callback`
+   `http://localhost:5001/api/youtube/callback`
 4. Go to **Profile → Channel & Tags → Google API credentials**, paste the client ID and secret, and click Save. They are written to `server/.env` and take effect immediately, without a restart. You can also edit `server/.env` by hand and restart the server.
 5. Click **Connect YouTube**.
 
