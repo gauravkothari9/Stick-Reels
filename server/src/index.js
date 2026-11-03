@@ -12,7 +12,7 @@ import billing, { webhook } from './routes/billing.js';
 import music from './routes/music.js';
 import schedules from './routes/schedules.js';
 import { loadUser, requireAuth } from './services/auth.js';
-import { migrate } from './services/migrate.js';
+import { dedupeYoutubeChannels, migrate } from './services/migrate.js';
 import { loadPlanOverrides } from './services/plans.js';
 import { startQueue } from './services/queue.js';
 import { startScheduler } from './services/scheduler.js';
@@ -84,6 +84,7 @@ app.use((err, _req, res, _next) => {
 
 await mongoose.connect(config.mongoUri);
 await migrate();
+await dedupeYoutubeChannels();
 await loadPlanOverrides();
 fs.mkdirSync(path.join(MEDIA_DIR, 'videos'), { recursive: true });
 fs.mkdirSync(path.join(MEDIA_DIR, 'previews'), { recursive: true });

@@ -34,8 +34,14 @@ export default function Profile() {
   useEffect(() => {
     const yt = params.get('youtube');
     if (!yt) return;
-    if (yt === 'connected') notify('YouTube channel connected');
-    else notify('YouTube connection was cancelled', 'error');
+    const messages = {
+      connected: ['YouTube channel connected'],
+      taken: ['That YouTube channel is already connected to another Stick Reels account. Pick your own channel.', 'error'],
+      nochannel: ['That Google account has no YouTube channel. Create one on YouTube, or pick another account.', 'error'],
+      denied: ['YouTube connection was cancelled', 'error'],
+      error: ["Couldn't connect YouTube. Please try again.", 'error'],
+    };
+    notify(...(messages[yt] || messages.error));
     setParams({}, { replace: true });
   }, [params, setParams, notify]);
 
@@ -101,7 +107,13 @@ function AccountSection() {
             </button>
           </div>
         ) : yt.configured ? (
-          <a className="btn yt" href="/api/youtube/auth"><YoutubeIcon size={16} /> Connect YouTube</a>
+          <div className="connect-yt">
+            <a className="btn yt" href="/api/youtube/auth"><YoutubeIcon size={16} /> Connect your YouTube channel</a>
+            <p className="hint">
+              Google will ask which account to use. Choose the Google account that owns <strong>your</strong> channel;
+              if it shows someone else&apos;s, pick <em>Use another account</em>. Each channel can be linked to one Stick Reels account.
+            </p>
+          </div>
         ) : (
           <p className="hint warn">
             {isAdmin ? 'Add the Google API credentials below, then connect your channel.'

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { google } from 'googleapis';
 import { config } from '../config.js';
-import { getSettings } from '../models/Settings.js';
+import { getSettings, Settings } from '../models/Settings.js';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
@@ -25,12 +25,36 @@ export function authUrl(state, redirectUri) {
   return oauthClient(redirectUri).generateAuthUrl({ access_type: 'offline', prompt: 'select_account consent', scope: SCOPES, state });
 }
 
+/** Thrown when the chosen channel can't be linked; `code` goes back to the client as ?youtube=<code>. */
+export class ChannelError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
+
+/**
+ * Link the channel the user picked on Google's screen to their Stick Reels account.
+ * Each YouTube channel belongs to one Stick Reels account, so a new user can't end up
+ * uploading to someone else's channel (for example after signing up in a browser that is
+ * already signed in to the owner's Google account).
+ */
 export async function handleCallback(userId, code, redirectUri) {
   const client = oauthClient(redirectUri);
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
   const { data } = await google.youtube({ version: 'v3', auth: client }).channels.list({ part: ['snippet'], mine: true });
   const channel = data.items?.[0];
+  if (!channel?.id) {
+    await client.revokeToken(tokens.access_token).catch(() => {});
+    throw new ChannelError('nochannel', 'That Google account has no YouTube channel');
+  }
+  const taken = await Settings.exists({ userId: { $ne: userId }, 'youtube.channelId': channel.id, 'youtube.tokens': { $ne: null } });
+  if (taken) {
+    // Don't revoke here: revoking cancels the whole Google grant, which would also cut off the
+    // account that legitimately owns this channel. The new tokens are simply not stored.
+    throw new ChannelError('taken', 'This channel is already connected to another Stick Reels account');
+  }
   const settings = await getSettings(userId);
   settings.youtube = { tokens, channelId: channel?.id, channelTitle: channel?.snippet?.title || 'YouTube channel' };
   await settings.save();

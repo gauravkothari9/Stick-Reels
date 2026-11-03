@@ -85,11 +85,8 @@ export default function Header() {
               <span className="yt-name">{yt.channelTitle}</span>
               <span className="yt-dot" aria-label="Connected" />
             </Link>
-          ) : yt?.configured ? (
-            <a className="btn yt" href="/api/youtube/auth">
-              <YoutubeIcon size={16} /> Connect YouTube
-            </a>
           ) : (
+            // Goes to the Account page first, which explains picking your own Google account.
             <Link className="btn yt" to="/profile/account">
               <YoutubeIcon size={16} /> Connect YouTube
             </Link>

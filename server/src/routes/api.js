@@ -11,7 +11,7 @@ import { categories, categoryById, randomCategory } from '../services/categories
 import { updateEnvFile } from '../services/envFile.js';
 import { allowedStyles, hasPaidAccess, hasPriority, planForStyle, styleError, usage } from '../services/plans.js';
 import { ensurePreviews, kick, previewPath, publishJob, youtubeReady } from '../services/queue.js';
-import { authUrl, handleCallback, isConfigured } from '../services/youtube.js';
+import { authUrl, ChannelError, handleCallback, isConfigured } from '../services/youtube.js';
 
 const router = Router();
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -62,7 +62,13 @@ router.get('/youtube/callback', wrap(async (req, res) => {
   await req.user.save();
   if (req.query.error || !req.query.code) return back('denied');
   if (!expected || req.query.state !== expected) return back('denied');
-  await handleCallback(req.user._id, req.query.code, redirectUriFor(req));
+  try {
+    await handleCallback(req.user._id, req.query.code, redirectUriFor(req));
+  } catch (e) {
+    if (e instanceof ChannelError) return back(e.code);
+    console.error('YouTube connect failed:', e.message);
+    return back('error');
+  }
   back('connected');
 }));
 
